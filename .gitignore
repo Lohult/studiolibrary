@@ -139,3 +139,7 @@ $RECYCLE.BIN/
 
 # Windows shortcuts
 *.lnk
+.vs/ProjectSettings.json
+.vs/slnx.sqlite
+.vs/VSWorkspaceState.json
+.vs/studiolibrary/v16/.suo
