@@ -590,8 +590,12 @@ class Cache(mutils.Pose):
         mayaPath = os.path.join(path, fileName)
         posePath = os.path.join(path, "pose.json")
         mutils.Pose.save(self, posePath)
-        # TODO add a way to process the full path of an object.
-        root_to_objects = ["-root |" + i for i in objects]
+
+        root_to_objects = []
+        root_to_objects = []
+        for object in objects:
+            maya.cmds.ls(object, long=True)
+            root_to_objects.append("-root " + object)
         root_to_objects = " ".join(root_to_objects)
         command = u"-frameRange {0} {1} -uvWrite -dataFormat ogawa {2} -file {3}"
         command = command.format(start, end, root_to_objects, mayaPath)
