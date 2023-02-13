@@ -597,7 +597,7 @@ class Cache(mutils.Pose):
             maya.cmds.ls(object, long=True)
             root_to_objects.append("-root " + object)
         root_to_objects = " ".join(root_to_objects)
-        command = u"-frameRange {0} {1} -uvWrite -dataFormat ogawa {2} -file {3}"
+        command = u"-frameRange {0} {1} -uvWrite -stripNamespaces -dataFormat ogawa {2} -file {3}"
         command = command.format(start, end, root_to_objects, mayaPath)
         maya.cmds.AbcExport ( j = command )
 
@@ -673,14 +673,5 @@ class Cache(mutils.Pose):
         logger.debug("Cache.load(objects=%s, option=%s, namespaces=%s, srcTime=%s)" %
                     (len(objects), str(option), str(namespaces), str(sourceTime)))
 
-        for object in objects:
-            if "clipRN" not in object:
-                clipRN = namespaces[0]+"clipRN"
-                print(clipRN)
-                print(namespaces)
-            else:
-                print(object)
-            #     refnode = maya.cmds.file(object, query=True, referenceNode=True )
-            # maya.cmds.file(self.path(), referenceNode="{}:clipRN".format(Cache.IMPORT_NAMESPACE), loadReference=True, type="Alembic")
 
         logger.info(u'Loaded: {0}'.format(self.path()))

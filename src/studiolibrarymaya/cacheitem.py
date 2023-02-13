@@ -61,10 +61,10 @@ class CacheItem(baseitem.BaseItem):
         """
         schema = super(CacheItem, self).loadSchema()
 
-        anim = mutils.Cache.fromPath(self.path())
+        cache = mutils.Cache.fromPath(self.path())
 
-        startFrame = anim.startFrame() or 0
-        endFrame = anim.endFrame() or 0
+        startFrame = cache.startFrame() or 0
+        endFrame = cache.endFrame() or 0
 
         value = "{0} - {1}".format(startFrame, endFrame)
         schema.insert(3, {"name": "Range", "value": value})
