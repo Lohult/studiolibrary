@@ -39,7 +39,7 @@ FIX_SAVE_ANIM_REFERENCE_LOCKED_ERROR = True
 class PasteOption:
 
     Replace = "replace"
-    # Insert = "insert"
+    Import = "import"
     # Replace = "replace"
     # ReplaceAll = "replace all"
     # ReplaceCompletely = "replaceCompletely"
@@ -60,6 +60,7 @@ def exportAbc(
         time=None,
         sampleBy=1,
         fileType="Alembic",
+        exportUSD=False,
         metadata=None,
         iconPath="",
         sequencePath=""
@@ -104,6 +105,7 @@ def exportAbc(
         time=time,
         sampleBy=sampleBy,
         fileType=fileType,
+        exportUSD=exportUSD
     )
     return cache
 
@@ -251,7 +253,6 @@ def importAbc(
     objects=None,
     option=None,
     namespaces=None,
-    startFrame=None,
     showDialog=False,
 ):
     """
@@ -295,7 +296,7 @@ def importAbc(
 
     for path in paths:
 
-        cache = mutils.Animation.fromPath(path)
+        cache = mutils.Cache.fromPath(path)
 
         if startFrame is None and isFirstAnim:
             startFrame = cache.startFrame()
@@ -544,6 +545,7 @@ class Cache(mutils.Pose):
         time=None,
         sampleBy=1,
         fileType="Alembic",
+        exportUSD=False
     ):
         """
         Save all animation data from the objects set on the Anim object.
@@ -576,13 +578,10 @@ class Cache(mutils.Pose):
         self.setMetadata("startFrame", start)
 
         end += 1
-        validCurves = []
-        deleteObjects = []
 
-        msg = u"Cache.save(path={0}, time={1}, sampleBy={2})"
-        msg = msg.format(path, str(time), str(sampleBy))
+        msg = u"Cache.save(path={0}, time={1}, sampleBy={2}), exportUSD={3}"
+        msg = msg.format(path, str(time), str(sampleBy), str(exportUSD))
         logger.debug(msg)
-        root = []
 
         fileName = "cache.abc"
         if fileType == "Alembic":
@@ -591,14 +590,50 @@ class Cache(mutils.Pose):
         mayaPath = os.path.join(path, fileName)
         posePath = os.path.join(path, "pose.json")
         mutils.Pose.save(self, posePath)
-        
+        # TODO add a way to process the full path of an object.
         root_to_objects = ["-root |" + i for i in objects]
         root_to_objects = " ".join(root_to_objects)
-        print(root_to_objects)
         command = u"-frameRange {0} {1} -uvWrite -dataFormat ogawa {2} -file {3}"
         command = command.format(start, end, root_to_objects, mayaPath)
-        # command = "-frameRange " + str(start) + " " + str(end) +" -uvWrite -worldSpace " + str(objects).strip("[]") + " -file " + mayaPath
         maya.cmds.AbcExport ( j = command )
+
+        try:
+            if exportUSD:
+                try:
+                    import pymel.core as pmc
+                    from mgear.core import dag
+                except:
+                    raise
+                exportList = []
+                for selection in pmc.selected():
+                    topnode = dag.getTopParent(selection)
+                    if topnode.hasAttr("is_crowd"):
+                        exportList.append(topnode)
+                if exportList:
+                    maya.cmds.mayaUSDExport(
+                        file=mayaPath.replace(".abc", ".usdc"),
+                        frameRange=[start, end],
+                        frameStride=1.0,
+                        convertMaterialsTo="None",
+                        exportColorSets=False,
+                        exportInstances=False,
+                        exportUVs=False,
+                        kind='component',
+                        exportDisplayColor=False,
+                        shadingMode=None,
+                        selection=True,
+                        stripNamespaces=True,
+                        verbose=True,
+                        exportSkels="auto",
+                        exportSkin=None,
+                        exportBlendShapes=0,
+                        eulerFilter=1,
+                        staticSingleSample=1
+                    )
+                else:
+                    logger.warning("USD not exported.")
+        except:
+            raise
 
         self.setPath(path)
 
@@ -608,120 +643,40 @@ class Cache(mutils.Pose):
             self,
             objects=None,
             namespaces=None,
-            attrs=None,
-            startFrame=None,
-            sourceTime=None,
             option=None,
-            connect=False,
-            mirrorTable=None,
-            currentTime=None
     ):
         """
         Load the animation data to the given objects or namespaces.
 
         :type objects: list[str]
         :type namespaces: list[str]
-        :type startFrame: int
-        :type sourceTime: (int, int) or None
-        :type attrs: list[str]
         :type option: PasteOption or None
-        :type connect: bool
-        :type mirrorTable: mutils.MirrorTable
-        :type currentTime: bool or None
         """
         logger.info(u'Loading: {0}'.format(self.path()))
 
-        connect = bool(connect)  # Make false if connect is None
+        sourceTime = (self.startFrame(), self.endFrame())
 
-        if not sourceTime:
-            sourceTime = (self.startFrame(), self.endFrame())
+        # if option and option.lower() == "replace":
+        #     option = "replaceCompletely"
 
-        if option and option.lower() == "replace all":
-            option = "replaceCompletely"
-
-        if option is None or option == PasteOption.ReplaceAll:
-            option = PasteOption.ReplaceCompletely
+        # if option is None or option == PasteOption.ReplaceAll:
+        #     option = PasteOption.ReplaceCompletely
 
         self.validate(namespaces=namespaces)
 
         objects = objects or []
 
-        logger.debug("Animation.load(objects=%s, option=%s, namespaces=%s, srcTime=%s, currentTime=%s)" %
-                     (len(objects), str(option), str(namespaces), str(sourceTime), str(currentTime)))
+        logger.debug("Cache.load(objects=%s, option=%s, namespaces=%s, srcTime=%s)" %
+                    (len(objects), str(option), str(namespaces), str(sourceTime)))
 
-        srcObjects = self.objects().keys()
-
-        if mirrorTable:
-            self.setMirrorTable(mirrorTable)
-
-        valid = False
-        matches = list(mutils.matchNames(srcObjects=srcObjects, dstObjects=objects, dstNamespaces=namespaces))
-
-        for srcNode, dstNode in matches:
-            if dstNode.exists():
-                valid = True
-                break
-
-        if not matches or not valid:
-
-            text = "No objects match when loading data. " \
-                   "Turn on debug mode to see more details."
-
-            raise mutils.NoMatchFoundError(text)
-
-        # Load the animation data.
-        srcCurves = self.open()
-
-        try:
-            maya.cmds.flushUndo()
-            maya.cmds.undoInfo(openChunk=True)
-
-            if currentTime and startFrame is None:
-                startFrame = int(maya.cmds.currentTime(query=True))
-
-            srcTime = findFirstLastKeyframes(srcCurves, sourceTime)
-            dstTime = moveTime(srcTime, startFrame)
-
-            if option != PasteOption.ReplaceCompletely:
-                insertKeyframe(srcCurves, srcTime)
-
-            for srcNode, dstNode in matches:
-
-                # Remove the first pipe in-case the object has a parent
-                dstNode.stripFirstPipe()
-
-                for attr in self.attrs(srcNode.name()):
-
-                    # Filter any attributes if the parameter has been set
-                    if attrs is not None and attr not in attrs:
-                        continue
-
-                    dstAttr = mutils.Attribute(dstNode.name(), attr)
-                    srcCurve = self.animCurve(srcNode.name(), attr, withNamespace=True)
-
-                    # Skip if the destination attribute does not exists.
-                    if not dstAttr.exists():
-                        logger.debug('Skipping attribute: The destination attribute "%s.%s" does not exist!' %
-                                     (dstAttr.name(), dstAttr.attr()))
-                        continue
-
-                    if srcCurve:
-                        dstAttr.setAnimCurve(
-                            srcCurve,
-                            time=dstTime,
-                            option=option,
-                            source=srcTime,
-                            connect=connect
-                        )
-                    else:
-                        value = self.attrValue(srcNode.name(), attr)
-                        dstAttr.setStaticKeyframe(value, dstTime, option)
-
-        finally:
-            self.close()
-            maya.cmds.undoInfo(closeChunk=True)
-
-            # Return the focus to the Maya window
-            maya.cmds.setFocus("MayaWindow")
+        for object in objects:
+            if "clipRN" not in object:
+                clipRN = namespaces[0]+"clipRN"
+                print(clipRN)
+                print(namespaces)
+            else:
+                print(object)
+            #     refnode = maya.cmds.file(object, query=True, referenceNode=True )
+            # maya.cmds.file(self.path(), referenceNode="{}:clipRN".format(Cache.IMPORT_NAMESPACE), loadReference=True, type="Alembic")
 
         logger.info(u'Loaded: {0}'.format(self.path()))

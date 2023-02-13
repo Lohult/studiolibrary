@@ -61,7 +61,7 @@ class CacheItem(baseitem.BaseItem):
         """
         schema = super(CacheItem, self).loadSchema()
 
-        anim = mutils.Animation.fromPath(self.path())
+        anim = mutils.Cache.fromPath(self.path())
 
         startFrame = anim.startFrame() or 0
         endFrame = anim.endFrame() or 0
@@ -77,32 +77,10 @@ class CacheItem(baseitem.BaseItem):
                 "order": 2,
             },
             {
-                "name": "connect",
-                "type": "bool",
-                "inline": True,
-                "default": False,
-                "persistent": True,
-                "label": {"name": ""}
-            },
-            {
-                "name": "currentTime",
-                "type": "bool",
-                "inline": True,
-                "default": True,
-                "persistent": True,
-                "label": {"name": ""}
-            },
-            {
-                "name": "sourceTime",
-                "title": "source",
-                "type": "range",
-                "default": [startFrame, endFrame],
-            },
-            {
                 "name": "option",
                 "type": "enum",
-                "default": "replace all",
-                "items": ["replace", "replace all", "insert", "merge"],
+                "default": "replace",
+                "items": ["replace"],
                 "persistent": True,
             },
         ])
@@ -111,17 +89,14 @@ class CacheItem(baseitem.BaseItem):
 
     def load(self, **kwargs):
         """
-        Load the animation for the given objects and options.
+        Load the cache for the given objects and options.
 
         :type kwargs: dict
         """
-        anim = mutils.Cache.fromPath(self.path())
-        anim.importAbc(
+        cache = mutils.Cache.fromPath(self.path())
+        cache.load(
             objects=kwargs.get("objects"),
             namespaces=kwargs.get("namespaces"),
-            attrs=kwargs.get("attrs"),
-            startFrame=kwargs.get("startFrame"),
-            sourceTime=kwargs.get("sourceTime"),
             option=kwargs.get("option"),
         )
 
@@ -157,6 +132,14 @@ class CacheItem(baseitem.BaseItem):
                 "default": "Alembic",
                 "items": ["Alembic"],
                 "persistent": True
+            },
+            {
+                "name": "exportUSD",
+                "type": "bool",
+                "default": False,
+                "persistent": True,
+                "inline": True,
+                "label": {"visible": False}
             },
             {
                 "name": "frameRange",
