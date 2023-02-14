@@ -75,14 +75,7 @@ class CacheItem(baseitem.BaseItem):
                 "title": "Options",
                 "type": "group",
                 "order": 2,
-            },
-            {
-                "name": "option",
-                "type": "enum",
-                "default": "replace",
-                "items": ["replace"],
-                "persistent": True,
-            },
+            }
         ])
 
         return schema
@@ -97,7 +90,6 @@ class CacheItem(baseitem.BaseItem):
         cache.load(
             objects=kwargs.get("objects"),
             namespaces=kwargs.get("namespaces"),
-            option=kwargs.get("option"),
         )
 
     def saveSchema(self):
@@ -227,5 +219,6 @@ class CacheItem(baseitem.BaseItem):
             fileType=kwargs.get("fileType"),
             iconPath=kwargs.get("thumbnail"),
             metadata={"description": kwargs.get("comment", "")},
-            sequencePath=sequencePath
+            sequencePath=sequencePath,
+            exportUSD=kwargs.get("exportUSD")
         )

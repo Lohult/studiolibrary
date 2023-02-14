@@ -307,7 +307,6 @@ def importAbc(
         cache.load(
             option=option,
             objects=objects,
-            startFrame=startFrame,
             namespaces=namespaces,
         )
 
@@ -592,17 +591,20 @@ class Cache(mutils.Pose):
         mutils.Pose.save(self, posePath)
 
         root_to_objects = []
-        root_to_objects = []
+
         for object in objects:
             maya.cmds.ls(object, long=True)
             root_to_objects.append("-root " + object)
+
         root_to_objects = " ".join(root_to_objects)
+
         command = u"-frameRange {0} {1} -uvWrite -stripNamespaces -dataFormat ogawa {2} -file {3}"
         command = command.format(start, end, root_to_objects, mayaPath)
         maya.cmds.AbcExport ( j = command )
 
         try:
             if exportUSD:
+                logger.info("Exporting USD")
                 try:
                     import pymel.core as pmc
                     from mgear.core import dag
@@ -614,7 +616,9 @@ class Cache(mutils.Pose):
                     if topnode.hasAttr("is_crowd"):
                         exportList.append(topnode)
                 if exportList:
+                    logger.info(mayaPath.replace(".abc", ".usdc"))
                     maya.cmds.mayaUSDExport(
+                        exportList,
                         file=mayaPath.replace(".abc", ".usdc"),
                         frameRange=[start, end],
                         frameStride=1.0,
@@ -625,7 +629,7 @@ class Cache(mutils.Pose):
                         kind='component',
                         exportDisplayColor=False,
                         shadingMode=None,
-                        selection=True,
+                        selection=False,
                         stripNamespaces=True,
                         verbose=True,
                         exportSkels="auto",
@@ -658,8 +662,6 @@ class Cache(mutils.Pose):
         """
         logger.info(u'Loading: {0}'.format(self.path()))
 
-        sourceTime = (self.startFrame(), self.endFrame())
-
         # if option and option.lower() == "replace":
         #     option = "replaceCompletely"
 
@@ -668,10 +670,26 @@ class Cache(mutils.Pose):
 
         self.validate(namespaces=namespaces)
 
-        objects = objects or []
+        objects = maya.cmds.listRelatives("{}:model".format(namespaces[0]), children=True)
 
-        logger.debug("Cache.load(objects=%s, option=%s, namespaces=%s, srcTime=%s)" %
-                    (len(objects), str(option), str(namespaces), str(sourceTime)))
+        logger.debug("Cache.load(objects=%s, option=%s, namespaces=%s" %
+                    (len(objects), str(option), str(namespaces)))
+
+        fileName = "cache.abc"
+        mayaPath = os.path.join(self.path(), fileName)
+
+        root_to_objects = []
+        if objects:
+            for object in objects:
+                maya.cmds.ls(object, long=True)
+                root_to_objects.append("-root " + object)
+
+            objects = " ".join(root_to_objects)
+            
+            maya.cmds.AbcImport(mayaPath, mode="import", connect=objects)
+        else:
+            model = maya.cmds.ls(namespaces[0]+"model", long=True)
+            maya.cmds.AbcImport(mayaPath, mode="import", reparent=model)
 
 
-        logger.info(u'Loaded: {0}'.format(self.path()))
+        logger.info(u'Loaded: {0}'.format(mayaPath))
