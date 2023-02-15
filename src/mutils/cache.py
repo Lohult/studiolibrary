@@ -21,6 +21,8 @@ import mutils.gui
 
 try:
     import maya.cmds
+    import pymel.core as pmc
+    from mgear.core import dag
 except ImportError:
     import traceback
     traceback.print_exc()
@@ -314,6 +316,12 @@ def importAbc(
         startFrame += duration + spacing
         isFirstAnim = False
 
+# def connect_meta(objects=None,
+# ):
+
+#     attrs = (("cycle_name", "abc_File"), ("cycle_length","endFrame"), ("cycle_offset","offset"))
+
+
 
 class Cache(mutils.Pose):
 
@@ -494,45 +502,6 @@ class Cache(mutils.Pose):
             maya.cmds.namespace(set=':')
             maya.cmds.namespace(rm=Cache.IMPORT_NAMESPACE)
 
-    def cleanMayaFile(self, path):
-        """
-        Clean up all commands in the exported maya file that are
-        not createNode.
-        """
-        results = []
-
-        with open(path, "r") as f:
-            for line in f.readlines():
-                if not line.startswith("select -ne"):
-                    results.append(line)
-                else:
-                    results.append("// End")
-                    break
-
-        with open(path, "w") as f:
-            f.writelines(results)
-
-    def _duplicate_node(self, node_path, duplicate_name):
-        """Duplicate given node.
-
-        :param node_path: Maya path.
-        :type node_path: str
-        :param duplicate_name: Name for the duplicated node.
-        :type duplicate_name: str
-        :returns: Duplicated node.
-        :rtype: str
-        """
-        if maya.cmds.nodeType(node_path) == "transform":
-            duplicated_node = maya.cmds.duplicate(node_path,
-                                                  name=duplicate_name,
-                                                  parentOnly=True)[0]
-        else:
-            duplicated_node = maya.cmds.duplicate(node_path,
-                                                  name=duplicate_name)[0]
-            duplicated_node = maya.cmds.listRelatives(duplicated_node,
-                                                      shapes=True)[0] or []
-
-        return duplicated_node
 
     @mutils.timing
     @mutils.unifyUndo
@@ -605,11 +574,6 @@ class Cache(mutils.Pose):
         try:
             if exportUSD:
                 logger.info("Exporting USD")
-                try:
-                    import pymel.core as pmc
-                    from mgear.core import dag
-                except:
-                    raise
                 exportList = []
                 for selection in pmc.selected():
                     topnode = dag.getTopParent(selection)
@@ -658,38 +622,37 @@ class Cache(mutils.Pose):
 
         :type objects: list[str]
         :type namespaces: list[str]
-        :type option: PasteOption or None
         """
         logger.info(u'Loading: {0}'.format(self.path()))
-
-        # if option and option.lower() == "replace":
-        #     option = "replaceCompletely"
-
-        # if option is None or option == PasteOption.ReplaceAll:
-        #     option = PasteOption.ReplaceCompletely
 
         self.validate(namespaces=namespaces)
 
         objects = maya.cmds.listRelatives("{}:model".format(namespaces[0]), children=True)
 
-        logger.debug("Cache.load(objects=%s, option=%s, namespaces=%s" %
-                    (len(objects), str(option), str(namespaces)))
-
         fileName = "cache.abc"
         mayaPath = os.path.join(self.path(), fileName)
 
-        root_to_objects = []
         if objects:
+            logger.debug("Cache.load(objects=%s, option=%s, namespaces=%s" %
+                    (len(objects), str(option), str(namespaces)))
+            root_to_objects = []
             for object in objects:
                 maya.cmds.ls(object, long=True)
                 root_to_objects.append("-root " + object)
 
             objects = " ".join(root_to_objects)
             
-            maya.cmds.AbcImport(mayaPath, mode="import", connect=objects)
+            alembic_name = maya.cmds.AbcImport(mayaPath, mode="import", connect=objects)
         else:
-            model = maya.cmds.ls(namespaces[0]+"model", long=True)
-            maya.cmds.AbcImport(mayaPath, mode="import", reparent=model)
-
+            model = maya.cmds.ls(namespaces[0]+":model", long=True)[0]
+            alembic_name = maya.cmds.AbcImport(mayaPath, mode="import", reparent=model)
+        
+        # connect alembic node attrs to top asset node meta data attrs
+        topnode = dag.getTopParent(pmc.PyNode(namespaces[0]+":model"))
+        if topnode.hasAttr("is_crowd"):
+            attrs = (("cycle_name", "abc_File"), ("cycle_length","endFrame"), ("cycle_offset","offset"))
+            alembic_pynode = pmc.PyNode(alembic_name)
+            for attr in attrs:
+                alembic_pynode.attr(attr[1]).connect(topnode.attr(attr[0]))
 
         logger.info(u'Loaded: {0}'.format(mayaPath))
