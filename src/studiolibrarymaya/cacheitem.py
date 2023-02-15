@@ -69,14 +69,14 @@ class CacheItem(baseitem.BaseItem):
         value = "{0} - {1}".format(startFrame, endFrame)
         schema.insert(3, {"name": "Range", "value": value})
 
-        schema.extend([
-            {
-                "name": "optionsGroup",
-                "title": "Options",
-                "type": "group",
-                "order": 2,
-            }
-        ])
+        # schema.extend([
+        #     {
+        #         "name": "optionsGroup",
+        #         "title": "Options",
+        #         "type": "group",
+        #         "order": 2,
+        #     }
+        # ])
 
         return schema
 
